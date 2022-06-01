@@ -27,12 +27,11 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map.Entry;
 
 import recipes_service.data.Operation;
-//LSim logging system imports sgeag@2017
-//import lsim.coordinator.LSimCoordinator;
-import edu.uoc.dpcs.lsim.logger.LoggerManager.Level;
-import lsim.library.api.LSimLogger;
+
+
 
 /**
  * @author Joan-Manuel Marques, Daniel Lázaro Iglesias
@@ -75,16 +74,31 @@ public class Log implements Serializable{
 	 */
 	public synchronized boolean add(Operation op){
 		
-		List<Operation> operations = log.get(op.getTimestamp().getHostid());
+		String host = op.getTimestamp().getHostid();
+		List<Operation> operations = log.get(host);
 		boolean ret = false;
 		
-		int intOp = operations.size()-1;
+		Timestamp timestamp = null;
 		
-		if(operations.isEmpty() || operations.get(intOp).getTimestamp().compare(op.getTimestamp())<0) {
-			ret = operations.add(op);
-		}
+		int intOp = operations.size()-1;
 	
-		return ret;
+		if(!operations.isEmpty()) {
+			timestamp = operations.get(intOp).getTimestamp();
+		}
+		
+		long difference = op.getTimestamp().compare(timestamp);
+		
+		if((timestamp == null && difference == 0) || (timestamp != null && difference == 1)) {
+			this.log.get(host).add(op);
+			return true;
+		}
+		
+		
+		/*|| operations.get(intOp).getTimestamp().compare(op.getTimestamp())<0)
+		
+		ret = operations.add(op);*/
+		
+		return false;
 	}
 	
 	/**
@@ -96,7 +110,18 @@ public class Log implements Serializable{
 	 * @return list of operations
 	 */
 	public List<Operation> listNewer(TimestampVector sum){
-		return null;
+		List<Operation> ret = new Vector<Operation>();
+		for (String nd : this.log.keySet()) {
+			List<Operation> ops = this.log.get(nd);
+			Timestamp timestamp = sum.getLast(nd);
+			for (Operation op : ops) {
+				if (op.getTimestamp().compare(timestamp) > 0) {
+					ret.add(op);
+				}
+			}
+		}
+		
+		return ret;
 	}
 	
 	/**
@@ -107,6 +132,31 @@ public class Log implements Serializable{
 	 * @param ack: ackSummary.
 	 */
 	public void purgeLog(TimestampMatrix ack){
+		/*
+		
+		TimestampVector minTimestampVector = ack.minTimestampVector();
+		for(Entry<String, List<Operation>> entry : log.entrySet()){
+			String participant = entry.getKey();
+			List<Operation> ops = entry.getValue();
+			System.out.println("minTimestampVector is null? log.124");
+			if(minTimestampVector== null) System.out.println("YES");
+			Timestamp timestamp = minTimestampVector.getLast(participant);
+			
+			if (timestamp != null) {
+				Iterator<Operation> it = ops.iterator();
+				for (int i = ops.size() - 1; i >= 0; i--) {
+					Operation op=ops.get(i);
+					if (op.getTimestamp().compare(timestamp) < 0) {
+						ops.remove(i);
+					}
+				}
+				
+			}
+			
+		}  
+		
+		*/
+		
 	}
 
 	/**
@@ -124,15 +174,14 @@ public class Log implements Serializable{
 	 */
 	@Override
 	public synchronized String toString() {
-		String name="";
-		for(Enumeration<List<Operation>> en=log.elements();
-		en.hasMoreElements(); ){
-		List<Operation> sublog=en.nextElement();
-		for(ListIterator<Operation> en2=sublog.listIterator(); en2.hasNext();){
-			name+=en2.next().toString()+"\n";
+		String ret="";
+		for(Enumeration<List<Operation>> enumeration=log.elements(); enumeration.hasMoreElements(); ){
+		List<Operation> list=enumeration.nextElement();
+		for(ListIterator<Operation> enumeration2=list.listIterator(); enumeration2.hasNext();){
+			ret+=enumeration2.next().toString()+"\n";
 		}
 	}
 		
-		return name;
+		return ret;
 	}
 }

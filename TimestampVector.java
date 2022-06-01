@@ -23,6 +23,7 @@ package recipes_service.tsae.data_structures;
 
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -69,14 +70,21 @@ public class TimestampVector implements Serializable{
 	 */
 	public synchronized void updateTimestamp(Timestamp timestamp){
 		LSimLogger.log(Level.TRACE, "Updating the TimestampVectorInserting with the timestamp: "+timestamp);
-		if(timestamp != null) this.timestampVector.replace(timestamp.getHostid(), timestamp);
+		if(timestamp != null) this.timestampVector.put(timestamp.getHostid(), timestamp);
 	}
 	
 	/**
 	 * merge in another vector, taking the elementwise maximum
 	 * @param tsVector (a timestamp vector)
 	 */
-	public void updateMax(TimestampVector tsVector){
+	public synchronized void updateMax(TimestampVector tsVector){
+		for (String key : this.timestampVector.keySet()) {
+			Timestamp newTimestamp = tsVector.getLast(key);
+			Timestamp oldTimestamp = this.getLast(key);
+			if (oldTimestamp.compare(newTimestamp) < 0 ) {
+				this.timestampVector.replace(key, newTimestamp);
+			}
+		}
 	}
 	
 	/**
@@ -86,7 +94,7 @@ public class TimestampVector implements Serializable{
 	 * received.
 	 */
 	public synchronized Timestamp getLast(String node){
-		return null;
+		return this.timestampVector.get(node);
 	}
 	
 	/**
@@ -95,14 +103,30 @@ public class TimestampVector implements Serializable{
 	 * After merging, local node will have the smallest timestamp for each node.
 	 *  @param tsVector (timestamp vector)
 	 */
-	public void mergeMin(TimestampVector tsVector){
+	public synchronized void mergeMin(TimestampVector tsVector){
+		for (String key : tsVector.timestampVector.keySet()) {
+			Timestamp newTimestamp = tsVector.getLast(key);
+			Timestamp oldTimestamp = this.getLast(key);
+			if (oldTimestamp.compare(newTimestamp) > 0) {
+				this.timestampVector.replace(key, newTimestamp);
+			}
+			
+		}
 	}
 	
 	/**
 	 * clone
 	 */
 	public TimestampVector clone(){
-		return null;
+		List<String> participants = new ArrayList<String>(timestampVector.keySet());
+		TimestampVector objectClonedReturn = new TimestampVector(participants);
+		
+		for (String key : timestampVector.keySet()) {
+			Timestamp ts = this.timestampVector.get(key);
+			objectClonedReturn.timestampVector.put(ts.getHostid(), ts);
+		}
+		
+		return objectClonedReturn;
 	}
 	
 	/**
@@ -110,7 +134,7 @@ public class TimestampVector implements Serializable{
 	 */
 	public boolean equals(Object obj){
 		if (obj != null && obj == this) return true;
-		else if (obj != null) return timestampVector .equals(((TimestampVector ) obj).timestampVector);
+		else if (obj != null) return timestampVector.equals(((TimestampVector ) obj).timestampVector);
 		else return false;
 	}
 
